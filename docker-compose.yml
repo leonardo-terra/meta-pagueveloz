@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: pagueveloz-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=PagueVeloz@123
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - pagueveloz-network
+
+  # API Application
+  api:
+    build:
+      context: .
+      dockerfile: src/PagueVeloz.TransactionProcessor.API/Dockerfile
+    container_name: pagueveloz-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=PagueVelozTransactionProcessor;User Id=sa;Password=PagueVeloz@123;TrustServerCertificate=true;MultipleActiveResultSets=true
+    ports:
+      - "5000:8080"
+      - "5001:8081"
+    depends_on:
+      - sqlserver
+    networks:
+      - pagueveloz-network
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+
+networks:
+  pagueveloz-network:
+    driver: bridge
+
