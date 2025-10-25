@@ -21,17 +21,14 @@ public class Account
     
     public DateTime? UpdatedAt { get; set; }
     
-    // Navigation properties
     public virtual Client Client { get; set; } = null!;
     
     public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     
-    // Calculated properties
     public decimal AvailableBalance => Balance - ReservedBalance;
     
     public decimal TotalAvailableBalance => AvailableBalance + CreditLimit;
     
-    // Business methods
     public bool CanDebit(decimal amount)
     {
         return TotalAvailableBalance >= amount;

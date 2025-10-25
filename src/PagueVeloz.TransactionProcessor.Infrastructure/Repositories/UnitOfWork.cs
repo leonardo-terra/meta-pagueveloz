@@ -29,11 +29,8 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task BeginTransactionAsync()
     {
-        // Check if we're using InMemory database (which doesn't support transactions)
         if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
         {
-            // For InMemory database, we'll simulate transaction behavior
-            // by not actually creating a transaction
             return;
         }
         
@@ -42,10 +39,8 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task CommitTransactionAsync()
     {
-        // Check if we're using InMemory database (which doesn't support transactions)
         if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
         {
-            // For InMemory database, just save changes
             await _context.SaveChangesAsync();
             return;
         }
@@ -60,11 +55,8 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task RollbackTransactionAsync()
     {
-        // Check if we're using InMemory database (which doesn't support transactions)
         if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
         {
-            // For InMemory database, we can't rollback, but we can clear the context
-            // This is a limitation of InMemory database for testing
             return;
         }
         

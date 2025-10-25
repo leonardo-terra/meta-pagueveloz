@@ -51,26 +51,22 @@ public class AccountValidationService : IAccountValidationService
 
     public async Task<ValidationResult> ValidateAccountForTransactionAsync(Guid accountId, decimal amount, OperationType operation)
     {
-        // Verificar se a conta existe
         var account = await _unitOfWork.Accounts.GetByAccountIdAsync(accountId);
         if (account == null)
         {
             return ValidationResult.Failure("Conta não encontrada", "ACCOUNT_NOT_FOUND");
         }
 
-        // Verificar se a conta está ativa
         if (account.Status != AccountStatus.Active)
         {
             return ValidationResult.Failure("Conta não está ativa", "ACCOUNT_INACTIVE");
         }
 
-        // Verificar se o cliente está ativo
         if (account.Client?.Status != ClientStatus.Active)
         {
             return ValidationResult.Failure("Cliente não está ativo", "CLIENT_INACTIVE");
         }
 
-        // Validações específicas por tipo de operação
         switch (operation)
         {
             case OperationType.Debit:
@@ -92,7 +88,6 @@ public class AccountValidationService : IAccountValidationService
                 break;
 
             case OperationType.Credit:
-                // Para crédito, verificar se não excede limite de crédito
                 var totalCreditUsed = account.Balance;
                 if (totalCreditUsed + amount > account.CreditLimit)
                 {
@@ -112,7 +107,6 @@ public class AccountValidationService : IAccountValidationService
                 break;
 
             case OperationType.Reversal:
-                // Para reversal, verificar se há transações para reverter
                 var transactions = await _unitOfWork.Transactions.GetByAccountIdAndStatusAsync(accountId, TransactionStatus.Success);
                 if (!transactions.Any())
                 {
@@ -121,7 +115,6 @@ public class AccountValidationService : IAccountValidationService
                 break;
 
             case OperationType.Transfer:
-                // Para transferência, verificar saldo disponível
                 if (!account.CanDebit(amount))
                 {
                     return ValidationResult.Failure(

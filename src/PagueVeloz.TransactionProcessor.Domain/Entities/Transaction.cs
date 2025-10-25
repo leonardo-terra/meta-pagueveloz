@@ -21,16 +21,14 @@ public class Transaction
     
     public string? ErrorMessage { get; set; }
     
-    public string? Metadata { get; set; } // JSON string for additional data
+    public string? Metadata { get; set; }
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     public DateTime? ProcessedAt { get; set; }
     
-    // Navigation properties
     public virtual Account Account { get; set; } = null!;
     
-    // Business methods
     public void MarkAsSuccess()
     {
         Status = TransactionStatus.Success;

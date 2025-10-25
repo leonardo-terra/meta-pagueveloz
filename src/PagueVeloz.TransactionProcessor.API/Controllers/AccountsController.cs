@@ -24,7 +24,6 @@ public class AccountsController : ControllerBase
         {
             var response = await _accountService.CreateAccountAsync(request);
             
-            // Log de auditoria
             var userIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
             await _auditService.LogAccountCreationAsync(
@@ -39,7 +38,6 @@ public class AccountsController : ControllerBase
         }
         catch (Exception ex)
         {
-            // Log de erro de validação
             var userIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
             await _auditService.LogValidationFailureAsync("ACCOUNT_CREATION", ex.Message, userIp, userAgent);

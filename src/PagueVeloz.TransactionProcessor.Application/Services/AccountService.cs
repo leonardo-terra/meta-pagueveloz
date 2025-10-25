@@ -15,25 +15,21 @@ public class AccountService : IAccountService
 
     public async Task<CreateAccountResponse> CreateAccountAsync(CreateAccountRequest request)
     {
-        // Business Rule: Validate initial balance against credit limit
         if (request.InitialBalance > request.CreditLimit)
         {
             throw new InvalidOperationException("Saldo inicial não pode ser maior que o limite de crédito");
         }
 
-        // Business Rule: Validate credit limit is reasonable
         if (request.CreditLimit < 0 || request.CreditLimit > 10000000)
         {
             throw new InvalidOperationException("Limite de crédito deve estar entre 0 e R$ 10.000.000,00");
         }
 
-        // Business Rule: Validate initial balance is reasonable
         if (request.InitialBalance < 0 || request.InitialBalance > 1000000)
         {
             throw new InvalidOperationException("Saldo inicial deve estar entre 0 e R$ 1.000.000,00");
         }
 
-        // Create or get client
         var client = await _unitOfWork.Clients.GetByIdAsync(request.ClientId);
         if (client == null)
         {
@@ -48,21 +44,12 @@ public class AccountService : IAccountService
         }
         else
         {
-            // Business Rule: Check if client is active
             if (client.Status != ClientStatus.Active)
             {
                 throw new InvalidOperationException("Cliente deve estar ativo para criar uma conta");
             }
         }
 
-        // Business Rule: Check if client already has too many accounts (optional limit)
-        var existingAccounts = await _unitOfWork.Accounts.GetByClientIdAsync(request.ClientId);
-        if (existingAccounts.Count() >= 10) // Business rule: max 10 accounts per client
-        {
-            throw new InvalidOperationException("Cliente já possui o número máximo de contas permitidas (10)");
-        }
-
-        // Create account
         var account = new Account
         {
             ClientId = request.ClientId,

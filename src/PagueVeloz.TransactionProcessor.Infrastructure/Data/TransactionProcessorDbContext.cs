@@ -17,7 +17,6 @@ public class TransactionProcessorDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Client configuration
         modelBuilder.Entity<Client>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -28,7 +27,6 @@ public class TransactionProcessorDbContext : DbContext
             entity.Property(e => e.UpdatedAt);
         });
 
-        // Account configuration
         modelBuilder.Entity<Account>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -39,17 +37,14 @@ public class TransactionProcessorDbContext : DbContext
             entity.Property(e => e.CreatedAt).IsRequired();
             entity.Property(e => e.UpdatedAt);
 
-            // Relationships
             entity.HasOne(e => e.Client)
                   .WithMany(c => c.Accounts)
                   .HasForeignKey(e => e.ClientId)
                   .OnDelete(DeleteBehavior.Restrict);
 
-            // Indexes
             entity.HasIndex(e => e.ClientId);
         });
 
-        // Transaction configuration
         modelBuilder.Entity<Transaction>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -63,13 +58,11 @@ public class TransactionProcessorDbContext : DbContext
             entity.Property(e => e.CreatedAt).IsRequired();
             entity.Property(e => e.ProcessedAt);
 
-            // Relationships
             entity.HasOne(e => e.Account)
                   .WithMany(a => a.Transactions)
                   .HasForeignKey(e => e.AccountId)
                   .OnDelete(DeleteBehavior.Restrict);
 
-            // Indexes
             entity.HasIndex(e => e.AccountId);
             entity.HasIndex(e => e.ReferenceId).IsUnique();
             entity.HasIndex(e => e.CreatedAt);

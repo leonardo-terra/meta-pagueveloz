@@ -30,7 +30,6 @@ public class TransactionsController : ControllerBase
 
         try
         {
-            // Log da tentativa de transação
             await _auditService.LogTransactionAttemptAsync(
                 request.AccountId, 
                 request.ReferenceId, 
@@ -40,7 +39,6 @@ public class TransactionsController : ControllerBase
                 userIp, 
                 userAgent);
 
-            // Validar conta e estado
             var validationResult = await _accountValidationService.ValidateAccountForTransactionAsync(
                 request.AccountId, 
                 request.Amount, 

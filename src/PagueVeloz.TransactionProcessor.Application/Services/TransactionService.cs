@@ -16,11 +16,9 @@ public class TransactionService : ITransactionService
 
     public async Task<ProcessTransactionResponse> ProcessTransactionAsync(ProcessTransactionRequest request)
     {
-        // Use database transaction for atomicity and idempotency check
         await _unitOfWork.BeginTransactionAsync();
         try
         {
-            // Check if transaction already exists (idempotency) - within transaction for consistency
             var existingTransaction = await _unitOfWork.Transactions.GetByReferenceIdAsync(request.ReferenceId);
             if (existingTransaction != null)
             {
@@ -37,7 +35,6 @@ public class TransactionService : ITransactionService
                 };
             }
 
-            // Create transaction
             var transaction = new Transaction
             {
                 AccountId = request.AccountId,
@@ -49,7 +46,6 @@ public class TransactionService : ITransactionService
                 Metadata = request.Metadata != null ? JsonSerializer.Serialize(request.Metadata) : null
             };
 
-            // Get account with pessimistic lock for concurrency control
             var account = await _unitOfWork.Accounts.GetByAccountIdForUpdateAsync(request.AccountId);
             if (account == null)
             {
@@ -66,15 +62,12 @@ public class TransactionService : ITransactionService
                 };
             }
 
-            // Add transaction to context
             await _unitOfWork.Transactions.AddAsync(transaction);
 
             try
             {
-                // Process transaction based on operation type
                 await ProcessTransactionByType(transaction, account);
                 
-                // Mark as success and save
                 transaction.MarkAsSuccess();
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
@@ -92,7 +85,6 @@ public class TransactionService : ITransactionService
             }
             catch (Exception ex)
             {
-                // Mark as failed and save within the same transaction
                 transaction.MarkAsFailed(ex.Message);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
@@ -113,7 +105,6 @@ public class TransactionService : ITransactionService
         {
             await _unitOfWork.RollbackTransactionAsync();
             
-            // Return a failed response without saving to database
             return new ProcessTransactionResponse
             {
                 TransactionId = Guid.NewGuid(),
@@ -162,8 +153,6 @@ public class TransactionService : ITransactionService
 
     private Task ProcessCreditTransaction(Transaction transaction, Account account)
     {
-        // Business Rule: Credit increases the account balance
-        // No need to check credit limit as it's already validated in the validation service
         account.Balance += transaction.Amount;
         account.UpdatedAt = DateTime.UtcNow;
         return Task.CompletedTask;
@@ -171,8 +160,6 @@ public class TransactionService : ITransactionService
 
     private Task ProcessDebitTransaction(Transaction transaction, Account account)
     {
-        // Business Rule: Debit decreases the account balance
-        // Check if account has sufficient balance (including credit limit)
         if (!account.CanDebit(transaction.Amount))
         {
             throw new InvalidOperationException($"Saldo insuficiente. Disponível: {account.TotalAvailableBalance:C}, Solicitado: {transaction.Amount:C}");
@@ -185,7 +172,6 @@ public class TransactionService : ITransactionService
 
     private Task ProcessReserveTransaction(Transaction transaction, Account account)
     {
-        // Business Rule: Reserve moves money from available balance to reserved balance
         if (!account.CanReserve(transaction.Amount))
         {
             throw new InvalidOperationException($"Saldo disponível insuficiente para reserva. Disponível: {account.AvailableBalance:C}, Solicitado: {transaction.Amount:C}");
@@ -198,7 +184,6 @@ public class TransactionService : ITransactionService
 
     private Task ProcessCaptureTransaction(Transaction transaction, Account account)
     {
-        // Business Rule: Capture moves money from reserved balance to actual debit
         if (!account.CanCapture(transaction.Amount))
         {
             throw new InvalidOperationException($"Valor reservado insuficiente para captura. Reservado: {account.ReservedBalance:C}, Solicitado: {transaction.Amount:C}");
@@ -212,7 +197,6 @@ public class TransactionService : ITransactionService
 
     private async Task ProcessReversalTransaction(Transaction transaction, Account account)
     {
-        // Business Rule: Reversal requires original transaction reference
         if (string.IsNullOrEmpty(transaction.Metadata))
         {
             throw new InvalidOperationException("Reversão requer referência à transação original");
@@ -230,26 +214,22 @@ public class TransactionService : ITransactionService
             throw new InvalidOperationException("ReferenceId original não pode ser vazio");
         }
 
-        // Get original transaction
         var originalTransaction = await _unitOfWork.Transactions.GetByReferenceIdAsync(originalReferenceId);
         if (originalTransaction == null)
         {
             throw new InvalidOperationException($"Transação original não encontrada: {originalReferenceId}");
         }
 
-        // Validate original transaction belongs to the same account
         if (originalTransaction.AccountId != account.Id)
         {
             throw new InvalidOperationException("Transação original não pertence a esta conta");
         }
 
-        // Validate original transaction was successful
         if (originalTransaction.Status != TransactionStatus.Success)
         {
             throw new InvalidOperationException("Apenas transações bem-sucedidas podem ser revertidas");
         }
 
-        // Check if already reversed
         var existingReversal = await _unitOfWork.Transactions.FindAsync(t => 
             t.Operation == OperationType.Reversal && 
             t.Metadata != null && 
@@ -260,17 +240,14 @@ public class TransactionService : ITransactionService
             throw new InvalidOperationException("Transação já foi revertida anteriormente");
         }
 
-        // Validate reversal amount matches original amount
         if (transaction.Amount != originalTransaction.Amount)
         {
             throw new InvalidOperationException("Valor da reversão deve ser igual ao valor da transação original");
         }
 
-        // Perform reversal based on original operation type
         switch (originalTransaction.Operation)
         {
             case OperationType.Credit:
-                // Reverse credit = debit
                 if (!account.CanDebit(transaction.Amount))
                 {
                     throw new InvalidOperationException($"Saldo insuficiente para reverter crédito. Disponível: {account.TotalAvailableBalance:C}, Solicitado: {transaction.Amount:C}");
@@ -279,12 +256,10 @@ public class TransactionService : ITransactionService
                 break;
 
             case OperationType.Debit:
-                // Reverse debit = credit
                 account.Balance += transaction.Amount;
                 break;
 
             case OperationType.Reserve:
-                // Reverse reserve = release reserved amount
                 if (account.ReservedBalance < transaction.Amount)
                 {
                     throw new InvalidOperationException($"Valor reservado insuficiente para reversão. Reservado: {account.ReservedBalance:C}, Solicitado: {transaction.Amount:C}");
@@ -293,15 +268,11 @@ public class TransactionService : ITransactionService
                 break;
 
             case OperationType.Capture:
-                // Reverse capture = restore reserved amount and add to balance
                 account.ReservedBalance += transaction.Amount;
                 account.Balance += transaction.Amount;
                 break;
 
             case OperationType.Transfer:
-                // Reverse transfer = transfer back
-                // This would require the original destination account, which is complex
-                // For now, we'll just add the amount back to balance
                 account.Balance += transaction.Amount;
                 break;
 
@@ -314,7 +285,6 @@ public class TransactionService : ITransactionService
 
     private async Task ProcessTransferTransaction(Transaction transaction, Account account)
     {
-        // Business Rule: Transfer requires both source and destination accounts
         if (string.IsNullOrEmpty(transaction.Metadata))
         {
             throw new InvalidOperationException("Transferência requer conta de destino especificada no metadata");
@@ -332,37 +302,30 @@ public class TransactionService : ITransactionService
             throw new InvalidOperationException("ID da conta de destino inválido");
         }
 
-        // Get destination account
         var destinationAccount = await _unitOfWork.Accounts.GetByAccountIdAsync(destinationAccountId);
         if (destinationAccount == null)
         {
             throw new InvalidOperationException("Conta de destino não encontrada");
         }
 
-        // Validate source account has sufficient balance
         if (!account.CanDebit(transaction.Amount))
         {
             throw new InvalidOperationException($"Saldo insuficiente para transferência. Disponível: {account.TotalAvailableBalance:C}, Solicitado: {transaction.Amount:C}");
         }
 
-        // Validate destination account is active
         if (destinationAccount.Status != AccountStatus.Active)
         {
             throw new InvalidOperationException("Conta de destino não está ativa");
         }
 
-        // Validate destination account client is active
         if (destinationAccount.Client.Status != ClientStatus.Active)
         {
             throw new InvalidOperationException("Cliente da conta de destino não está ativo");
         }
 
-        // Perform transfer (atomicity handled by caller)
-        // Debit from source account
         account.Balance -= transaction.Amount;
         account.UpdatedAt = DateTime.UtcNow;
 
-        // Credit to destination account
         destinationAccount.Balance += transaction.Amount;
         destinationAccount.UpdatedAt = DateTime.UtcNow;
     }
