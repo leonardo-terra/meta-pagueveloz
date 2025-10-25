@@ -1,3 +1,4 @@
+using FluentValidation.AspNetCore;
 using PagueVeloz.TransactionProcessor.Application;
 using PagueVeloz.TransactionProcessor.Infrastructure;
 
@@ -7,6 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add FluentValidation
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddFluentValidationClientsideAdapters();
 
 // Add custom services
 builder.Services.AddApplication();

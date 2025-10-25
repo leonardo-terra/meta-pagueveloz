@@ -1,5 +1,7 @@
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using PagueVeloz.TransactionProcessor.Application.Services;
+using PagueVeloz.TransactionProcessor.Application.Validators;
 
 namespace PagueVeloz.TransactionProcessor.Application;
 
@@ -10,6 +12,11 @@ public static class DependencyInjection
         // Register services
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ITransactionService, TransactionService>();
+        services.AddScoped<IAccountValidationService, AccountValidationService>();
+        services.AddScoped<IAuditService, AuditService>();
+
+        // Register validators
+        services.AddValidatorsFromAssemblyContaining<CreateAccountRequestValidator>();
 
         return services;
     }

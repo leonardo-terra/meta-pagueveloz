@@ -10,5 +10,11 @@ public class ProcessTransactionRequest
     public string Currency { get; set; } = "BRL";
     public string ReferenceId { get; set; } = string.Empty;
     public Dictionary<string, object>? Metadata { get; set; }
+    
+    // For transfer operations
+    public Guid? DestinationAccountId { get; set; }
+    
+    // For reversal operations
+    public string? OriginalReferenceId { get; set; }
 }
 

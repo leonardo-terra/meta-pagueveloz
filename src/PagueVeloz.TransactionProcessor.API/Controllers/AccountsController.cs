@@ -9,10 +9,12 @@ namespace PagueVeloz.TransactionProcessor.API.Controllers;
 public class AccountsController : ControllerBase
 {
     private readonly IAccountService _accountService;
+    private readonly IAuditService _auditService;
 
-    public AccountsController(IAccountService accountService)
+    public AccountsController(IAccountService accountService, IAuditService auditService)
     {
         _accountService = accountService;
+        _auditService = auditService;
     }
 
     [HttpPost]
@@ -21,10 +23,27 @@ public class AccountsController : ControllerBase
         try
         {
             var response = await _accountService.CreateAccountAsync(request);
+            
+            // Log de auditoria
+            var userIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+            await _auditService.LogAccountCreationAsync(
+                response.AccountId, 
+                response.ClientId, 
+                response.Balance, 
+                response.CreditLimit, 
+                userIp, 
+                userAgent);
+
             return CreatedAtAction(nameof(GetAccount), new { accountId = response.AccountId }, response);
         }
         catch (Exception ex)
         {
+            // Log de erro de validação
+            var userIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+            await _auditService.LogValidationFailureAsync("ACCOUNT_CREATION", ex.Message, userIp, userAgent);
+            
             return BadRequest(new { error = ex.Message });
         }
     }
