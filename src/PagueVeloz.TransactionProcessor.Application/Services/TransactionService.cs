@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using PagueVeloz.TransactionProcessor.Application.DTOs;
 using PagueVeloz.TransactionProcessor.Domain.Entities;
 using PagueVeloz.TransactionProcessor.Domain.Interfaces;
@@ -8,20 +9,32 @@ namespace PagueVeloz.TransactionProcessor.Application.Services;
 public class TransactionService : ITransactionService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<TransactionService> _logger;
+    private readonly IMetricsService _metricsService;
 
-    public TransactionService(IUnitOfWork unitOfWork)
+    public TransactionService(IUnitOfWork unitOfWork, ILogger<TransactionService> logger, IMetricsService metricsService)
     {
         _unitOfWork = unitOfWork;
+        _logger = logger;
+        _metricsService = metricsService;
     }
 
     public async Task<ProcessTransactionResponse> ProcessTransactionAsync(ProcessTransactionRequest request)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        _logger.LogInformation("Processing transaction: {Operation} for Account {AccountId} with ReferenceId {ReferenceId} and Amount {Amount}",
+            request.Operation, request.AccountId, request.ReferenceId, request.Amount);
+
         await _unitOfWork.BeginTransactionAsync();
         try
         {
             var existingTransaction = await _unitOfWork.Transactions.GetByReferenceIdAsync(request.ReferenceId);
             if (existingTransaction != null)
             {
+                _logger.LogInformation("Transaction already exists with ReferenceId {ReferenceId}, returning existing result",
+                    request.ReferenceId);
+                
                 await _unitOfWork.CommitTransactionAsync();
                 return new ProcessTransactionResponse
                 {
@@ -49,6 +62,7 @@ public class TransactionService : ITransactionService
             var account = await _unitOfWork.Accounts.GetByAccountIdForUpdateAsync(request.AccountId);
             if (account == null)
             {
+                _logger.LogWarning("Account not found: {AccountId}", request.AccountId);
                 await _unitOfWork.RollbackTransactionAsync();
                 return new ProcessTransactionResponse
                 {
@@ -62,6 +76,9 @@ public class TransactionService : ITransactionService
                 };
             }
 
+            _logger.LogInformation("Account locked for update: {AccountId} with Balance {Balance} and AvailableBalance {AvailableBalance}",
+                account.Id, account.Balance, account.AvailableBalance);
+
             await _unitOfWork.Transactions.AddAsync(transaction);
 
             try
@@ -71,6 +88,14 @@ public class TransactionService : ITransactionService
                 transaction.MarkAsSuccess();
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
+
+                stopwatch.Stop();
+                _metricsService.RecordTransactionDuration(request.Operation.ToString(), stopwatch.ElapsedMilliseconds);
+                _metricsService.IncrementTransactionCounter(request.Operation.ToString(), "success");
+                _metricsService.RecordAccountBalance(account.Id, account.Balance);
+
+                _logger.LogInformation("Transaction completed successfully: {TransactionId} for Account {AccountId} - New Balance: {Balance}",
+                    transaction.Id, account.Id, account.Balance);
 
                 return new ProcessTransactionResponse
                 {
@@ -85,6 +110,13 @@ public class TransactionService : ITransactionService
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
+                _metricsService.RecordTransactionDuration(request.Operation.ToString(), stopwatch.ElapsedMilliseconds);
+                _metricsService.IncrementTransactionCounter(request.Operation.ToString(), "failed");
+
+                _logger.LogError(ex, "Transaction failed: {Operation} for Account {AccountId} with ReferenceId {ReferenceId} - Error: {ErrorMessage}",
+                    request.Operation, request.AccountId, request.ReferenceId, ex.Message);
+
                 transaction.MarkAsFailed(ex.Message);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
@@ -103,6 +135,9 @@ public class TransactionService : ITransactionService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Critical error in transaction processing: {Operation} for Account {AccountId} with ReferenceId {ReferenceId}",
+                request.Operation, request.AccountId, request.ReferenceId);
+            
             await _unitOfWork.RollbackTransactionAsync();
             
             return new ProcessTransactionResponse
@@ -160,13 +195,22 @@ public class TransactionService : ITransactionService
 
     private Task ProcessDebitTransaction(Transaction transaction, Account account)
     {
+        _logger.LogInformation("Processing debit transaction: Amount {Amount} from Account {AccountId} - Current Balance: {Balance}",
+            transaction.Amount, account.Id, account.Balance);
+
         if (!account.CanDebit(transaction.Amount))
         {
+            _logger.LogWarning("Insufficient balance for debit: Account {AccountId} - Available: {AvailableBalance}, Requested: {Amount}",
+                account.Id, account.TotalAvailableBalance, transaction.Amount);
             throw new InvalidOperationException($"Saldo insuficiente. Disponível: {account.TotalAvailableBalance:C}, Solicitado: {transaction.Amount:C}");
         }
 
         account.Balance -= transaction.Amount;
         account.UpdatedAt = DateTime.UtcNow;
+        
+        _logger.LogInformation("Debit transaction completed: Account {AccountId} - New Balance: {Balance}",
+            account.Id, account.Balance);
+        
         return Task.CompletedTask;
     }
 

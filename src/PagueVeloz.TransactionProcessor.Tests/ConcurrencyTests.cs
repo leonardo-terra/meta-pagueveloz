@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PagueVeloz.TransactionProcessor.Application.DTOs;
 using PagueVeloz.TransactionProcessor.Application.Services;
 using PagueVeloz.TransactionProcessor.Domain.Entities;
@@ -31,6 +32,8 @@ public class ConcurrencyTests : IDisposable
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAccountValidationService, AccountValidationService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddSingleton<IMetricsService, MetricsService>();
+        services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 
         _serviceProvider = services.BuildServiceProvider();
         _context = _serviceProvider.GetRequiredService<TransactionProcessorDbContext>();

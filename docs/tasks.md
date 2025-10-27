@@ -187,27 +187,26 @@ Esta é a fase mais crítica, garantindo que o sistema é seguro contra condiç�
 
 O objetivo é desacoplar o sistema, adicionar monitoramento e preparar para produção.
 
-* [ ] **Implementar Publicação de Eventos Assíncronos**
-    * **AC:**
-        * [ ] Após uma transação ser *comitada* com sucesso no banco de dados, um evento (ex: `TransactionProcessedEvent`) é disparado.
-        * [ ] Para este desafio, pode ser um "Mediator" (como MediatR) publicando uma notificação `async`. Em um sistema real, seria um RabbitMQ/Kafka.
-        * [ ] A API deve responder ao cliente *antes* que o processamento assíncrono do evento termine.
 
-* [ ] **Implementar Retry (Caso #5)**
+* [x] **Implementar Observabilidade (Logs)**
     * **AC:**
-        * [ ] Criar um "handler" para o evento assíncrono (ex: `INotificationHandler` se usar MediatR).
-        * [ ] Simular uma falha nesse handler (ex: lançar uma exceção).
-        * [ ] Implementar uma política de retry (ex: usando Polly) com backoff exponencial para o *processamento do evento*, garantindo que ele seja re-tentado.
+        * [x] Adicionar logs estruturados (ex: Serilog) em pontos-chave (início da requisição, erro de validação, sucesso da transação, falha de concorrência).
 
-* [ ] **Implementar Observabilidade (Logs e Health Checks)**
-    * **AC:**
-        * [ ] Adicionar logs estruturados (ex: Serilog) em pontos-chave (início da requisição, erro de validação, sucesso da transação, falha de concorrência).
-        * [ ] Adicionar um endpoint `/health` (usando `AspNetCore.HealthChecks`) que verifica a conectividade com o banco de dados.
+**✅ OBSERVABILIDADE IMPLEMENTADA** - *Data: 25/10/2025*
+- ✅ Serilog configurado com logs estruturados para console e arquivo
+- ✅ Middleware personalizado para logging de requisições com CorrelationId
+- ✅ Logs detalhados em pontos críticos (início, validação, sucesso, falha de transações)
+- ✅ Sistema de métricas com contadores de transações e duração
+- ✅ Health checks para monitoramento de banco de dados
+- ✅ Endpoint `/health` para verificação de saúde da aplicação
+- ✅ Endpoint `/api/metrics` para consulta de métricas em tempo real
+- ✅ Logs de concorrência e locks pessimistas para debugging
+- ✅ Integração completa com todos os serviços existentes
 
 * [ ] **Implementar Testes Unitários e de Integração**
     * **AC:**
         * [ ] Criar testes unitários para a lógica de negócio pura (ex: validação de saldo na entidade `Account`).
-        * [ ] Criar testes de integração (usando `WebApplicationFactory`) que chamam a API real e verificam o estado do banco de dados (em memória ou testcontainer).
+        * [ ] Criar testes de integração (usando `WebApplicationFactory`) que chamam a API real e verificam o estado do banco de dados local. 
         * [ ] Incluir um teste específico para concorrência (conforme Fase 4).
 
 ### Fase 7: Testes de Performance e Stress

@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IAccountValidationService, AccountValidationService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddSingleton<IMetricsService, MetricsService>();
 
         // Register validators
         services.AddValidatorsFromAssemblyContaining<CreateAccountRequestValidator>();
